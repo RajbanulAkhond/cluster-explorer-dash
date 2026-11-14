@@ -1,27 +1,9 @@
-# Cluster Explorer
-
-Cluster highlighting uses an optional, viewer-only `clusterMemberships` table.
-Its four columns are `materialId`, `clusterIndex`, `siteReferences`, and
-`pointGroupRow`. References such as `2@(1,0,-1)` include periodic offsets;
-bare indices mean zero offsets. The app lazily fetches only the selected
-material's table and checks MPContribs' native table identity/checksum, structure
-fingerprint, and source-table bindings. Elements come from the summary structure;
-point groups and distances come from the existing tables. The new table is not
-rendered in the app or included in normal scientific-table exports. The original
-`clusters` and `clusterPointGroups` tables remain unchanged. Unavailable/stale data shows
-"Cluster highlighting isn't available for this material" and leave the normal
-crystal view usable.
-
-Before tables are uploaded, set `CLUSTER_EXPLORER_HIGHLIGHT_DIR` to the
-external package's `materials/` directory for local testing. These JSON files
-are offline caches, not attachments or upload artifacts. A remote
-highlighting record is authoritative and never falls back to an older local
-file. Local data and credentials are not included in the deployable app.
+# Cluster Explorer (Dash)
 
 Explore transition-metal clusters in Materials Project crystals. The application
 combines the public MPContribs `cluster_materials` project and its `clusters` and
 `clusterPointGroups` tables with current native MP properties, structures and
-electrode data. No dataset, API key or user credentials are distributed with it.
+electrode data. 
 
 ## Install and run locally
 
@@ -51,9 +33,7 @@ uv run --locked --extra serve gunicorn --bind 127.0.0.1:8052 \
 ```
 
 This keeps debug/reloader off. Use a managed reverse proxy/TLS and the MP team's
-production container for public deployment. The worker/thread values are a smoke
-configuration, not a production capacity recommendation. `/healthcheck` reports
-process/library health; it does not guarantee MP API availability or a warm index.
+production container for public deployment.
 
 ## Application structure
 
@@ -69,8 +49,7 @@ process/library health; it does not guarantee MP API availability or a warm inde
 | `tests/test_workflows.py` | Exactly 10 read-only browser acceptance workflows, excluded from the runtime wheel. |
 
 All Python app logic remains in MPShips' three supported hooks. The browser
-components are supplied by Dash/AG Grid and `dash-mp-components`; there is no
-separate Node build or Streamlit runtime.
+components are supplied by Dash/AG Grid and `dash-mp-components`.
 
 ## Data and interaction workflow
 
@@ -87,17 +66,8 @@ separate Node build or Streamlit runtime.
 6. Export all matches as CSV, or both child tables plus provenance as ZIP.
    CIF/JSON structure downloads retain source coordinates and the chosen supercell.
 
-Cluster-size and connectivity criteria must match the **same cluster row**.
-Point groups are material-level cluster-type records, not a guaranteed one-to-one
-assignment to each cluster. Whole-material polar/piezoelectric/enantiomorphic
-flags do not establish measured response tensors. Full native ranges retain
-unknown values; narrowed ranges exclude them.
 
-The z-up camera uses a rigid display-only coordinate mapping. It does not rotate
-the underlying Structure or downloaded CIF/JSON. Labels, spin and Cartesian axes
-are opt-in; Reset restores the documented default view.
-
-## Ten acceptance tests
+## Tests
 
 Install testing dependencies separately from production dependencies:
 
@@ -117,27 +87,25 @@ data, crystal interaction/reset, downloads, saved links/session isolation,
 responsive pinned controls, and invalid-state/stale-content handling. Expected
 counts come from the complete live export rather than a fixed material count.
 
-## MP handoff and remaining staging checks
+## Remaining staging checks
 
-Publish this directory as the root of a dedicated public app repository. Review
-and register an exact commit; later pushes do not update an MP deployment until
-its registered commit is changed. MP supplies its production Docker/WSGI wrapper.
+Cluster highlighting uses an optional, viewer-only `clusterMemberships` table.
+Its four columns are `materialId`, `clusterIndex`, `siteReferences`, and
+`pointGroupRow`. References such as `2@(1,0,-1)` include periodic offsets;
+bare indices mean zero offsets. The app lazily fetches only the selected
+material's table and checks MPContribs' native table identity/checksum, structure
+fingerprint, and source-table bindings. Elements come from the summary structure;
+point groups and distances come from the existing tables. The new table is not
+rendered in the app or included in normal scientific-table exports. The original
+`clusters` and `clusterPointGroups` tables remain unchanged. Unavailable/stale data shows
+"Cluster highlighting isn't available for this material" and leave the normal
+crystal view usable.
 
-At upstream MPShips commit `00660171740230087e9a7a53e988658c95413681`, the Docker
-adapter calls `create_app(url=...)`, but `mpships-infra==0.0.1` accepts `endpoint`.
-The adapter also imports an app module that already creates its Dash instance.
-The MP team must confirm the intended factory contract and avoid duplicate app
-creation. This inherited adapter mismatch is not patched in this application.
-
-Before launch, confirm the real `/MPShips/cluster_explorer/` route, MP UI metadata,
-credentials/access policy, Redis/cache isolation, gevent/thread compatibility,
-API budgets, memory/timeouts, health/readiness, logging and rollback. Local WSGI
-acceptance does not certify MP's private UI, Linux image or production capacity.
-
-The current implementation limits the public index to 50,000 contributions,
-conversion collection reads to 50,000 records, supercells to 3×3×3 and 2,000 sites,
-display graphs to 24,000 edges, and labels to 256 sites. Network reads share a
-four-worker pool. These are reviewed safeguards, not measured scalability limits.
+Before tables are uploaded, set `CLUSTER_EXPLORER_HIGHLIGHT_DIR` to the
+external package's `materials/` directory for local testing. These JSON files
+are offline caches, not attachments or upload artifacts. A remote
+highlighting record is authoritative and never falls back to an older local
+file. Local data and credentials are not included in the deployable app.
 
 ## References
 
