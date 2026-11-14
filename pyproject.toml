@@ -1,0 +1,52 @@
+[project]
+name = "cluster_explorer"
+version = "0.1.0"
+description = "Explore contributed transition-metal cluster materials with Materials Project data."
+readme = "README.md"
+authors = [
+  {name = "Md. Rajbanul Akhond", email = "mdakhond@iu.edu"}
+]
+maintainers = [
+  {name = "Md. Rajbanul Akhond", email = "mdakhond@iu.edu"}
+]
+classifiers = [
+  "Development Status :: 4 - Beta",
+  "Framework :: Dash",
+  "Intended Audience :: Science/Research",
+  "Programming Language :: Python :: 3.12",
+  "Topic :: Scientific/Engineering :: Chemistry"
+]
+license = "MIT"
+license-files = ["LICENSE"]
+requires-python = ">=3.12,<3.14"
+
+dependencies = [
+  "mpships-infra==0.0.1",
+  "dash==3.4.0",
+  "dash-ag-grid==35.3.0",
+  "dash-mp-components==0.5.2",
+  "crystal-toolkit==2026.7.20",
+  "mp-api[contribs]==0.47.0",
+  "emmet-core==0.88.0",
+  "pymatgen==2026.9.24",
+  "pymatgen-core==2026.10.16",
+  "pandas==3.0.6",
+  "pydantic==2.14.1",
+  "cachetools==7.2.4",
+  "flask-caching==2.5.1",
+  "monty==2026.7.16"
+]
+
+[project.optional-dependencies]
+test = ["playwright==1.56.0"]
+serve = ["gunicorn==23.0.0"]
+
+[tool.setuptools.packages.find]
+where = ["src"]
+include = ["cluster_explorer*"]
+
+[tool.setuptools.package-data]
+cluster_explorer = ["assets/*.css", "assets/*.js", "assets/*.svg"]
+[build-system]
+requires = ["setuptools==84.2.0"]
+build-backend = "setuptools.build_meta"
