@@ -14,7 +14,7 @@ import tempfile
 import unittest
 import zipfile
 from pathlib import Path
-from urllib.parse import unquote, urljoin
+from urllib.parse import unquote, urlencode, urljoin
 from xml.etree import ElementTree
 
 from playwright.sync_api import expect, sync_playwright
@@ -71,6 +71,24 @@ class MainWorkflows(unittest.TestCase):
     def count(self, number):
         expect(self.control("result-count")).to_have_text(f"{number:,} matches", timeout=90000)
 
+    def elements(self, symbols):
+        expected = "Elements: " + ", ".join(sorted(symbols)) if symbols else ""
+        expect(self.control("elements-label")).to_have_text(expected, timeout=30000)
+        expect(self.page.locator(".ce-periodic button.simple.enabled")).to_have_count(len(symbols))
+        for symbol in symbols:
+            expect(self.periodic_element(symbol)).to_have_class(re.compile(r"\benabled\b"))
+        link = self.control("share-search")
+        if symbols:
+            encoded = urlencode({"elements": ",".join(sorted(symbols))})
+            expect(link).to_have_attribute("href", re.compile(r"[&#]" + re.escape(encoded) + r"(?:&|$)"))
+        else:
+            expect(link).not_to_have_attribute("href", re.compile(r"[&#]elements="))
+
+    def periodic_element(self, symbol):
+        # The hover-detail panel also contains the same symbol; target the cell.
+        return self.page.locator(".ce-periodic button.simple").filter(
+            has=self.page.get_by_text(symbol, exact=True))
+
     def choose(self, name, text, search=None):
         control = self.control(name)
         control.scroll_into_view_if_needed()
@@ -81,11 +99,28 @@ class MainWorkflows(unittest.TestCase):
         control.locator(".VirtualizedSelectOption").filter(has_text=re.compile(pattern)).last.click()
 
     def query(self, value):
-        self.control("search").fill(value)
-        self.control("search").press("Tab")
+        control = self.control("search")
+        unchanged = control.input_value() == value
+        with self.page.expect_response(lambda r: "_dash-update-component" in r.url
+                and r.request.method == "POST"
+                and "CTClusterExplorer_periodic-context.enabledElements" in r.request.post_data_json.get("output", "")
+                and any(item["id"] == "CTClusterExplorer_search" and item["property"] == "value"
+                        and item.get("value") == value for item in r.request.post_data_json.get("inputs", [])),
+                timeout=30000):
+            control.fill(value)
+            control.press("Enter" if unchanged else "Tab")
 
     def reset(self):
-        self.control("reset").click()
+        # Reset can leave every visible value unchanged. Wait for its actual
+        # restore/synchronization request, not an already-true result count.
+        with self.page.expect_response(lambda r: "_dash-update-component" in r.url
+                and r.request.method == "POST"
+                and "CTClusterExplorer_periodic-request.data" in r.request.post_data_json.get("output", "")
+                and "CTClusterExplorer_reset.n_clicks" in r.request.post_data_json.get("changedPropIds", []),
+                timeout=30000):
+            self.control("reset").click()
+        expect(self.control("search")).to_have_value("")
+        self.elements([])
         self.count(len(self.baseline["materials"]))
 
     def group(self, name):
@@ -154,6 +189,34 @@ class MainWorkflows(unittest.TestCase):
         expect(self.page.get_by_text("Local preview", exact=True)).to_have_count(0)
         expect(self.page.locator(".ce-data-notes")).not_to_have_attribute("open", "")
         self.loaded("mp-1003545")
+        # Hold local callback responses until their real Dash loading state is
+        # visible. This checks slow stores, not an artificial application flag.
+        observed = set()
+        loaders = {"index-ready": "index-loading", "material-response": "material-loading",
+                   "viewer-response": "viewer-loading", "battery-response": "battery-loading"}
+
+        def hold_response(route):
+            output = (route.request.post_data_json or {}).get("output", "")
+            loader = next((v for k, v in loaders.items() if "CTClusterExplorer_" + k + ".data" in output), None)
+            if loader is None or loader in observed:
+                route.continue_()
+                return
+            observed.add(loader)
+            response = route.fetch(timeout=180000)
+            expect(self.control(loader).locator(".dash-spinner")).to_be_visible(timeout=4000)
+            route.fulfill(response=response)
+
+        self.page.route("**/_dash-update-component", hold_response)
+        try:
+            self.page.reload(wait_until="domcontentloaded")
+            self.count(len(materials))
+            self.viewer()
+            expect(self.control("battery-details")).not_to_be_empty(timeout=60000)
+            self.assertEqual(observed, set(loaders.values()))
+            for loader in loaders.values():
+                expect(self.control(loader).locator(".dash-spinner")).to_have_count(0, timeout=10000)
+        finally:
+            self.page.unroute("**/_dash-update-component", hold_response)
 
     def test_02_search_elements_paging_and_full_result_sort(self):
         """Search literal text, select elements, page, and sort every matching row."""
@@ -166,10 +229,58 @@ class MainWorkflows(unittest.TestCase):
         expect(grid.locator('.ag-center-cols-container [col-id="identifier"]').first).not_to_have_text(first)
         self.control("previous").click()
         expect(grid.locator('.ag-center-cols-container [col-id="identifier"]').first).to_have_text(first)
-        self.page.locator(".ce-periodic").get_by_text("Nb", exact=True).click()
+        self.periodic_element("Nb").click()
         expected = {row["identifier"] for row in self.baseline["materials"] if "Nb" in json.loads(row["elements"])}
         self.count(len(expected))
         self.assertEqual({row["identifier"] for row in self.rows()}, expected)
+        self.reset()
+        # A new text query replaces contradictory prior PT selections. Exercise
+        # IDs, encoded aliases, formulas, partial/ambiguous strings and no hits.
+        materials = self.baseline["materials"]
+        example = next(row for row in materials if row["identifier"] == "mp-29950")
+        expected_elements = set(json.loads(example["elements"]))
+        queries = [("mp-29950", "all"), (example["nativeIdentifier"], "identifier"),
+                   (example["formula"].swapcase(), "formula"), ("Mn", "formula"),
+                   ("Mn-O", "chemical"), ("mp-", "identifier"), ("[", "all"), ("", "all")]
+        for query, mode in queries:
+            print(f"  text priority: {mode} / {query!r}", flush=True)
+            self.reset()
+            self.periodic_element("Fe").click()
+            self.elements(["Fe"])
+            self.choose("searchMode", {"all": "All fields", "identifier": "MP ID",
+                                        "formula": "Formula", "chemical": "Chemical system"}[mode])
+            if query:
+                self.query(query)
+            else:
+                # Explicitly submit the empty query; do not let debounce merge
+                # a transient A -> empty edit before either value is committed.
+                self.control("search").press("Enter")
+            if query in {"mp-29950", example["nativeIdentifier"], example["formula"].swapcase()}:
+                matches = [example]
+            elif mode == "chemical":
+                matches = [row for row in materials if set(json.loads(row["elements"])) == {"Mn", "O"}]
+            else:
+                column = "formula" if mode == "formula" else "identifier"
+                matches = [row for row in materials if query.casefold() in row[column].casefold()] if query else materials
+            self.count(len(matches))
+            common = set.intersection(*(set(json.loads(row["elements"])) for row in matches)) if query and matches else set()
+            self.elements(common)
+            self.assertEqual({row["identifier"] for row in self.rows()}, {row["identifier"] for row in matches})
+        self.reset()
+        self.query(example["formula"])
+        self.count(1)
+        self.elements(expected_elements)
+        # The visual PT really was selected: clicking an automatic selection
+        # removes it. Additional choices narrow the current text, not all data.
+        self.periodic_element("Nb").click()
+        self.elements(expected_elements - {"Nb"})
+        self.count(1)
+        self.periodic_element("Fe").click()
+        self.elements((expected_elements - {"Nb"}) | {"Fe"})
+        self.count(0)
+        self.query("mp-4474")
+        self.count(1)
+        self.elements(json.loads(next(row for row in materials if row["identifier"] == "mp-4474")["elements"]))
         self.reset()
         self.choose("sort", "Band gap")
         self.choose("direction", "Descending")
@@ -212,8 +323,17 @@ class MainWorkflows(unittest.TestCase):
         examples = [("mp-29950", "Nb3Cl8", ["3", "8"]), ("mp-4474", "V4GaS8", ["4", "8"]),
                     ("mp-673706", "Li7(Mo3Se4)4", ["7", "3", "4", "4"])]
         for mid, formula, subscripts in examples:
+            self.query("no-such-material")
+            self.choose("availability", "Flat bands + battery")
+            self.periodic_element("Fe").click()
             self.choose("example", mid, search=formula)
+            self.count(1)
+            expect(self.control("search")).to_have_value(mid)
+            expect(self.control("availability").locator(".Select-value-label")).to_have_text("All materials")
+            expect(self.control("results").locator('.ag-row-selected [col-id="identifier"]')).to_have_text(mid)
             self.loaded(mid)
+            expected = next(row for row in self.baseline["materials"] if row["identifier"] == mid)
+            self.elements(json.loads(expected["elements"]))
             expect(self.control("example").locator(".Select-value-label")).to_have_text(f"{formula} · {mid}")
             expect(self.control("example").locator(".Select-value-label sub")).to_have_text(subscripts)
             expect(self.control("material-details").locator("h3").first).to_have_text(formula)
@@ -222,6 +342,10 @@ class MainWorkflows(unittest.TestCase):
             for name in ["clusters", "clusterPointGroups"]:
                 expected = sum(row["materialId"] == mid for row in self.baseline[name])
                 expect(self.page.locator(f'[data-table="{name}"] tbody tr')).to_have_count(expected)
+            if os.environ.get("CLUSTER_EXPLORER_REQUIRE_EXAMPLE_HIGHLIGHTING") == "1":
+                self.viewer()
+                expect(self.control("highlight-status")).to_be_empty(timeout=30000)
+                expect(self.control("crystal_legend_container")).to_contain_text("Cluster atoms (")
         self.select("mp-1103089")
         expect(self.control("material-details").get_by_role("link", name=re.compile(r"^ICSD \d+$")).first).to_have_attribute(
             "href", re.compile(r"^https://www\.ccdc\.cam\.ac\.uk/structures/Search\?Ccdcid=%20\d+&DatabaseToSearch=Published$"))

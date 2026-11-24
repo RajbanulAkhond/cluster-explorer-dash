@@ -66,6 +66,23 @@ components are supplied by Dash/AG Grid and `dash-mp-components`.
 6. Export all matches as CSV, or both child tables plus provenance as ZIP.
    CIF/JSON structure downloads retain source coordinates and the chosen supercell.
 
+### Search and examples
+
+Each new text query (or change of search mode) replaces the previous element
+selection. The periodic table automatically selects elements shared by **every**
+text match: a material ID or unique formula selects that material's elements;
+partial/ambiguous searches select only their common elements; no matches or an
+empty query select none. This cannot narrow the text matches. Subsequent
+periodic-table clicks refine that text result set. Other filters remain active;
+Reset clears all filters, and saved links preserve their explicit element choices.
+Pressing Enter explicitly starts a fresh text search, even when its text is
+unchanged or empty.
+
+Selecting an example clears conflicting filters, searches its exact MP ID,
+resets pagination, selects its result row, and loads its details and crystal.
+Loading spinners track the slow index/material/viewer/battery callbacks, including
+the response stores rather than only the final display callbacks.
+
 
 ## Tests
 
@@ -80,6 +97,8 @@ uv run --locked --extra test python -m unittest discover -s tests -v
 The app must already be running. Set `CLUSTER_EXPLORER_BASE_URL` to test a different
 host or the actual MP staging prefix. Browser downloads/screenshots go to a
 temporary directory, never into the repository. No test uploads contributions.
+Set `CLUSTER_EXPLORER_REQUIRE_EXAMPLE_HIGHLIGHTING=1` when the example cache bundle
+is configured to require positive highlighting checks for all three examples.
 
 The 10 workflows cover startup/index completeness, search/elements/paging/sorting,
 scientific filters/ranges, examples/details/links, flat-band and automatic battery
@@ -106,6 +125,27 @@ external package's `materials/` directory for local testing. These JSON files
 are offline caches, not attachments or upload artifacts. A remote
 highlighting record is authoritative and never falls back to an older local
 file. Local data and credentials are not included in the deployable app.
+
+### Testing highlighting on another machine
+
+Until the memberships are published to MPContribs, a normal clone has no
+highlighting data. Request `cluster-explorer-example-highlighting.zip` from the
+authors. It contains only the validated membership caches for `mp-29950`,
+`mp-4474`, and `mp-673706`, not structures or credentials. Extract it outside
+this repository, then start the app with the existing API key in your environment:
+
+```sh
+export CLUSTER_EXPLORER_HIGHLIGHT_DIR="/absolute/path/to/cluster-explorer-example-highlighting/materials"
+uv run --locked python run_app.py
+```
+
+Choose one of those examples and leave **Cluster atoms** enabled. Structures
+still come directly from MP's Summary API. Point groups and mean distances come
+from the existing contribution tables; the cache supplies only atom membership
+and validation metadata. A structure/table mismatch keeps highlighting off rather
+than applying potentially incorrect site indices. Other materials can still show
+the unavailability warning. No JSON attachment or duplicate structure upload is
+needed for this local demonstration.
 
 ## References
 

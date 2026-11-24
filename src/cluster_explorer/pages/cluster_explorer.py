@@ -178,7 +178,7 @@ class ClusterExplorer(MPShipsApp):
                     html.P("Transition-metal clusters in Materials Project crystals, with cluster geometry, symmetry, dimensionality, and flat-band data.", className="subtitle is-6"),
                 ]),
             ], className="ce-header"),
-            html.Div(id=self.id("project-status"), className="ce-project-status", children="Loading materials…"),
+            html.Div(id=self.id("project-status"), className="ce-project-status"),
             html.Div(id=self.id("index-warning"), className="help"),
             html.Div(id=self.id("url-warning"), className="help", role="status"),
             html.Div([
@@ -223,12 +223,17 @@ class ClusterExplorer(MPShipsApp):
                     ], className="ce-filters box"),
                 ], className="ce-sidebar"),
                 html.Main([
-                    html.Div(id=self.id("statistics"), className="ce-statistics", role="status"),
+                    dcc.Loading([dcc.Store(id=self.id("index-ready")),
+                        html.Div(id=self.id("statistics"), className="ce-statistics", role="status")],
+                        id=self.id("index-loading"), type="dot", color="#328086", delay_show=200,
+                        parent_style={"minHeight": "3rem"},
+                        target_components={self.id("index-ready"): "data", self.id("statistics"): "children"}),
                     html.Details([
                         html.Summary("Elements", className="ce-periodic-summary", title="Match all selected elements."),
-                        html.Div(html.Div(mpc.PeriodicContext(mpc.PeriodicTableInput(
+                        html.Div(mpc.PeriodicContext(mpc.PeriodicTableInput(
                             id=self.id("periodic"), maxElementSelectable=8, forceTableLayout="compact",
-                        )), key="periodic-0"), id=self.id("periodic-host")),
+                        ), id=self.id("periodic-context"), enabledElements=[], forwardOuterChange=True),
+                            id=self.id("periodic-host")),
                     ], className="box ce-periodic", open=True),
                     html.Section([
                         html.Div([
@@ -271,7 +276,8 @@ class ClusterExplorer(MPShipsApp):
                             dashGridOptions={"rowSelection": {"mode": "singleRow", "checkboxes": False,
                                                                "enableClickSelection": True}},
                             className="ag-theme-quartz", style={"height": "360px"},
-                        ), type="dot"),
+                        ), id=self.id("results-loading"), type="dot", color="#328086", delay_show=200,
+                            target_components={self.id("results"): "rowData"}),
                         html.Div([
                             html.Button("Previous", id=self.id("previous"), className="button is-small", disabled=True),
                             html.Span(id=self.id("page-label")),
@@ -289,7 +295,10 @@ class ClusterExplorer(MPShipsApp):
                     html.H2("Selected cluster material", className="title is-4"),
                     html.Span(id=self.id("selected-badge"), className="tag is-link is-light"),
                 ], className="ce-section-heading"),
-                dcc.Loading(html.Div(id=self.id("material-details")), type="dot"),
+                dcc.Loading([dcc.Store(id=self.id("material-response")), html.Div(id=self.id("material-details"))],
+                    id=self.id("material-loading"), type="dot", color="#328086", delay_show=200,
+                    parent_style={"minHeight": "3rem"},
+                    target_components={self.id("material-response"): "data", self.id("material-details"): "children"}),
                 html.Div(id=self.id("structure-status"), className="ce-structure-status"),
                 html.Details([
                     html.Summary("Viewer settings"),
@@ -317,7 +326,7 @@ class ClusterExplorer(MPShipsApp):
                         html.Button("Contribution JSON", id=self.id("export-material"), className="button is-small", title="Download this contribution."),
                     ], className="ce-viewer-actions"),
                 ], className="ce-filter-group"),
-                html.Div(mpc.CrystalToolkitScene([
+                dcc.Loading([dcc.Store(id=self.id("viewer-response")), html.Div(mpc.CrystalToolkitScene([
                     None, html.Div([
                         html.Img(id=self.id("orientation-axes"), className="ce-orientation-axes", alt="Cartesian x/y/z orientation",
                                  style={"display": "none"}),
@@ -332,7 +341,9 @@ class ClusterExplorer(MPShipsApp):
                     showExportButton=False, showImageButton=True, showPositionButton=False),
                          id=self.id("viewer-wrapper"), className="ce-viewer", style={"display": "none"},
                          **{"data-scene-key": ""},
-                         **{"aria-label": "Interactive crystal: drag to rotate, Shift-drag to move, scroll to zoom; double-click an atom to change its element color."}),
+                         **{"aria-label": "Interactive crystal: drag to rotate, Shift-drag to move, scroll to zoom; double-click an atom to change its element color."})],
+                    id=self.id("viewer-loading"), type="dot", color="#328086", delay_show=200,
+                    parent_style={"minHeight": "3rem"}, target_components={self.id("viewer-response"): "data"}),
                 html.Div(id=self.id("viewer-status"), className="help", role="status"),
                 html.Div(id=self.id("highlight-status"), className="help ce-highlight-status", role="status"),
                 html.Dialog([
@@ -348,8 +359,12 @@ class ClusterExplorer(MPShipsApp):
                 ], id=self.id("color-dialog"), className="ce-color-dialog",
                    **{"aria-labelledby": self.id("color-dialog-title")}),
                 html.Div(id=self.id("contribution-tables")),
-                html.Section(html.Div(id=self.id("battery-details")),
-                             id=self.id("battery-section"), className="ce-table-section", **{"aria-live": "polite"}),
+                dcc.Loading([dcc.Store(id=self.id("battery-response")),
+                    html.Section(html.Div(id=self.id("battery-details")),
+                        id=self.id("battery-section"), className="ce-table-section", **{"aria-live": "polite"})],
+                    id=self.id("battery-loading"), type="dot", color="#328086", delay_show=200,
+                    parent_style={"minHeight": "3rem"},
+                    target_components={self.id("battery-response"): "data", self.id("battery-details"): "children"}),
             ], className="box ce-material"),
             html.Footer([
                 html.Details([
@@ -367,13 +382,11 @@ class ClusterExplorer(MPShipsApp):
             ], className="ce-footer"),
             dcc.Store(id=self.id("page"), data=0),
             dcc.Store(id=self.id("selection"), data="mp-1003545"),
-            dcc.Store(id=self.id("index-ready")),
             dcc.Store(id=self.id("range-context")),
-            dcc.Store(id=self.id("material-response")),
-            dcc.Store(id=self.id("viewer-response")),
+            dcc.Store(id=self.id("periodic-request")),
+            dcc.Store(id=self.id("search-context")),
             dcc.Store(id=self.id("viewer-applied")),
             dcc.Store(id=self.id("element-colors"), data={}, storage_type="memory"),
-            dcc.Store(id=self.id("battery-response")),
             dcc.Download(id=self.id("download")),
             dcc.Download(id=self.id("structure-download")),
             dcc.Download(id=self.id("image-download")),
@@ -788,24 +801,42 @@ class ClusterExplorer(MPShipsApp):
         def in_range(value, low, high):
             return (low is None and high is None) or (value is not None and (low is None or value >= low) and (high is None or value <= high))
 
+        def text_rows(query, mode):
+            """The text search always starts from the complete contributed index."""
+            rows = data_index()["rows"]
+            query = (query or "").strip().casefold()
+            if not query:
+                return list(rows)
+            if mode in {"all", "identifier"}:
+                try:
+                    key = alias(query)
+                    exact = [row for row in rows if alias(row["identifier"]) == key]
+                    if exact:
+                        return exact
+                except ValueError:
+                    pass
+            if mode == "chemical":
+                try:
+                    wanted = {str(Element(symbol.strip())) for symbol in query.title().split("-")}
+                except ValueError:
+                    return []
+                return [row for row in rows if wanted == set(row["elements"])]
+            columns = [mode] if mode in {"formula", "identifier"} else [
+                "identifier", "nativeIdentifier", "formula", "compoundSystem", "clusterLatticeSpaceGroup", "pointGroups"]
+            if mode == "identifier":
+                columns.append("nativeIdentifier")
+            return [row for row in rows if any(query in str(row[column]).casefold() for column in columns)]
+
+        def text_elements(query, mode):
+            if not (query or "").strip():
+                return []
+            rows = text_rows(query, mode)
+            # An intersection, not a union or guessed formula parse: every text
+            # match already contains these elements, so auto-selection is neutral.
+            common = set.intersection(*(set(row["elements"]) for row in rows)) if rows else set()
+            return sorted(common) if len(common) <= 8 else []
+
         def matches(row, filters):
-            query = filters["query"].casefold()
-            if query:
-                mode = filters["searchMode"]
-                if mode == "chemical":
-                    try:
-                        wanted = {str(Element(s)) for s in filters["query"].split("-")}
-                    except ValueError:
-                        return False
-                    if wanted != set(row["elements"]):
-                        return False
-                elif mode in {"formula", "identifier"}:
-                    if query not in str(row[mode]).casefold() and (mode != "identifier" or query not in row["nativeIdentifier"].casefold()):
-                        return False
-                elif not any(query in str(row[k]).casefold() for k in [
-                    "identifier", "nativeIdentifier", "formula", "compoundSystem", "clusterLatticeSpaceGroup", "pointGroups",
-                ]):
-                    return False
             if not set(filters["elements"]).issubset(row["elements"]):
                 return False
             if filters["availability"] in {"flat", "both"} and not row["hasFlatData"]:
@@ -839,7 +870,7 @@ class ClusterExplorer(MPShipsApp):
 
         def matching_rows(filters):
             filters = normalize(filters)
-            rows = [row for row in data_index()["rows"] if matches(row, filters)]
+            rows = [row for row in text_rows(filters["query"], filters["searchMode"]) if matches(row, filters)]
             sort_key, reverse = filters.get("sort", "identifier"), filters.get("direction") == "desc"
             known = [r for r in rows if r[sort_key] is not None]
             unknown = [r for r in rows if r[sort_key] is None]
@@ -850,10 +881,12 @@ class ClusterExplorer(MPShipsApp):
         ui_control_keys = [key for key in control_keys if key not in {name + bound for name, _, _ in numeric_specs for bound in ["Min", "Max"]}] + [
             key + "Range" for key, _, _ in numeric_specs]
         control_ids = [self.id("search" if key == "query" else key) for key in ui_control_keys]
-        filter_inputs = [Input(control_id, "value") for control_id in control_ids] + [Input(self.id("range-context"), "data")]
-        filter_states = [State(control_id, "value") for control_id in control_ids] + [State(self.id("range-context"), "data")]
+        filter_inputs = [Input(control_id, "value") for control_id in control_ids] + [
+            Input(self.id("range-context"), "data"), Input(self.id("search-context"), "data")]
+        filter_states = [State(control_id, "value") for control_id in control_ids] + [
+            State(self.id("range-context"), "data"), State(self.id("search-context"), "data")]
 
-        def form_state(values, periodic, range_context):
+        def form_state(values, range_context, search_context=None):
             if range_context is not None and not isinstance(range_context, dict):
                 raise ValueError("Invalid property range context")
             raw = dict(zip(ui_control_keys, values))
@@ -876,7 +909,13 @@ class ClusterExplorer(MPShipsApp):
                     bounds = (saved["bounds"] if selected == saved["value"] else
                               [None if selected[0] == low else selected[0], None if selected[1] == high else selected[1]])
                 raw[key + "Min"], raw[key + "Max"] = bounds
-            return normalize(raw | {"elements": elements(periodic)})
+            key = [(raw.get("query") or "").strip(), raw.get("searchMode") or "all"]
+            # A new query and the periodic-table redraw are separate callbacks.
+            # Never let the old element selection narrow the new query meanwhile.
+            selected = (elements({"enabledElements": search_context.get("elements", [])})
+                        if (search_context or {}).get("key") == key
+                        else text_elements(*key))
+            return normalize(raw | {"elements": selected})
 
         for key, _, _ in numeric_specs:
             # Keep value feedback instant during dragging without API callbacks.
@@ -956,22 +995,57 @@ class ClusterExplorer(MPShipsApp):
             *[Output(control_id, "value") for control_id in control_ids],
             *[Output(self.id(key + "Range"), prop) for key, _, _ in numeric_specs for prop in ["min", "max", "step", "marks", "disabled"]],
             Output(self.id("range-context"), "data"),
-            Output(self.id("periodic-host"), "children"), Output(self.id("url-warning"), "children"),
+            Output(self.id("periodic-request"), "data"), Output(self.id("url-warning"), "children"),
+            Output(self.id("example"), "value"),
             Input(self.id("reset"), "n_clicks"), Input("mp-url", "hash"), Input(self.id("index-ready"), "data"),
+            Input(self.id("example"), "value"),
         )
-        def restore(reset_clicks, url_hash, ready):
+        def restore(reset_clicks, url_hash, ready, example):
+            if ctx.triggered_id == self.id("example") and not example:
+                raise PreventUpdate
             try:
                 resetting = ctx.triggered_id == self.id("reset")
-                filters = normalize({}) if resetting else url_state(url_hash)[0]
-                warning = "" if resetting else retired_filter_warning(url_hash)
+                choosing_example = ctx.triggered_id == self.id("example")
+                filters = (normalize({"query": identifier(example), "searchMode": "identifier"}) if choosing_example
+                           else normalize({}) if resetting else url_state(url_hash)[0])
+                warning = "" if resetting or choosing_example else retired_filter_warning(url_hash)
+                if choosing_example or (filters["query"] and "elements" not in parse_qs((url_hash or "").lstrip("#"))):
+                    filters["elements"] = text_elements(filters["query"], filters["searchMode"])
             except (ValueError, TypeError):
                 filters, warning = normalize({}), "This search link is invalid or unsupported. Default filters are shown."
-            periodic = html.Div(mpc.PeriodicContext(mpc.PeriodicTableInput(
-                id=self.id("periodic"), maxElementSelectable=8, forceTableLayout="compact",
-            ), enabledElements=filters["elements"], forwardOuterChange=True), key=f"periodic-{reset_clicks}-{url_hash}")
+            request = {"key": [filters["query"], filters["searchMode"]],
+                       "elements": filters["elements"], "revision": str(time.monotonic_ns())}
             values, properties, range_context = slider_settings(filters, (ready or {}).get("ranges", {}))
             return (*[filters[key] for key in ui_control_keys if not key.endswith("Range")], *values,
-                    *properties, range_context, periodic, warning)
+                    *properties, range_context, request, warning, example if choosing_example else None)
+
+        @app.callback(
+            Output(self.id("periodic-context"), "enabledElements"), Output(self.id("search-context"), "data"),
+            Input(self.id("search"), "value"), Input(self.id("searchMode"), "value"),
+            Input(self.id("periodic-request"), "data"), Input(self.id("periodic"), "state"),
+            Input(self.id("search"), "n_submit"),
+            State(self.id("search-context"), "data"),
+        )
+        def synchronize_elements(query, mode, request, periodic_state, _submitted, previous):
+            key = [(query or "").strip(), mode or "all"]
+            request, previous = request or {}, previous or {}
+            if request.get("key") == key and request.get("revision") != previous.get("request"):
+                selected = elements({"enabledElements": request.get("elements", [])})
+            elif previous.get("key") == key and ctx.triggered_id == self.id("periodic"):
+                selected = elements(periodic_state)
+                if selected == previous.get("elements"):
+                    raise PreventUpdate
+                # Keep the provider controlled, including manual edits. Otherwise
+                # returning to the same automatic list can leave old UI choices.
+                return selected, {**previous, "elements": selected}
+            elif ctx.triggered_id in {self.id("search"), self.id("searchMode")} or previous.get("key") != key:
+                # Even A -> B -> A edits replace prior manual choices; do not
+                # mistake a returned-to query for an unchanged filter session.
+                selected = text_elements(*key)
+            else:
+                raise PreventUpdate
+            context = {"key": key, "request": request.get("revision"), "elements": selected}
+            return selected, context
 
         def result_row(row):
             # Keep one size per cluster, including repeats. Point-group records
@@ -995,19 +1069,19 @@ class ClusterExplorer(MPShipsApp):
             Output(self.id("project-status"), "children"), Output(self.id("elements-label"), "children"),
             Output(self.id("statistics"), "children"),
             Output(self.id("data-availability"), "children"),
-            *filter_inputs, Input(self.id("periodic"), "state"), Input(self.id("index-ready"), "data"),
+            *filter_inputs, Input(self.id("index-ready"), "data"),
             Input(self.id("previous"), "n_clicks"), Input(self.id("next"), "n_clicks"),
             State(self.id("page"), "data"), State(self.id("selection"), "data"),
         )
         def search(*args):
             values = args[:len(ui_control_keys)]
-            range_context, periodic, ready, previous, next_click, page, selected = args[len(ui_control_keys):]
+            range_context, search_context, ready, previous, next_click, page, selected = args[len(ui_control_keys):]
             if not ready:
-                return [], "Loading…", 0, "", True, True, "Building the complete scientific index…", "", [], ""
+                return [], "Loading…", 0, "", True, True, "", "", [], ""
             try:
                 if ready.get("error"):
                     raise ValueError("Index unavailable")
-                filters = form_state(values, periodic, range_context)
+                filters = form_state(values, range_context, search_context)
                 rows, projection = matching_rows(filters), data_index()
                 page = max(0, min(int(page or 0), max(0, (len(rows) - 1) // page_size)))
                 if ctx.triggered_id == self.id("next"):
@@ -1054,11 +1128,11 @@ class ClusterExplorer(MPShipsApp):
 
         @app.callback(
             Output(self.id("share-search"), "href"), *filter_inputs,
-            Input(self.id("periodic"), "state"), Input(self.id("selection"), "data"),
+            Input(self.id("selection"), "data"),
         )
         def search_link(*args):
             try:
-                return share_url(form_state(args[:-3], args[-2], args[-3]), args[-1])
+                return share_url(form_state(args[:-3], args[-3], args[-2]), args[-1])
             except (ValueError, TypeError):
                 return ""
 
@@ -1069,7 +1143,9 @@ class ClusterExplorer(MPShipsApp):
         def select(cell, example, url_hash):
             if ctx.triggered_id == self.id("results") and cell:
                 value = next((r["identifier"] for r in data_index()["rows"] if r["id"] == cell.get("rowId")), "invalid")
-            elif ctx.triggered_id == self.id("example") and example:
+            elif ctx.triggered_id == self.id("example"):
+                if not example:
+                    raise PreventUpdate
                 value = example
             else:
                 try:
@@ -1220,11 +1296,11 @@ class ClusterExplorer(MPShipsApp):
         @app.callback(
             Output(self.id("download"), "data"), Output(self.id("export-status"), "children"),
             Input(self.id("export"), "n_clicks"), Input(self.id("export-tables"), "n_clicks"),
-            *filter_states, State(self.id("periodic"), "state"), prevent_initial_call=True,
+            *filter_states, prevent_initial_call=True,
         )
         def export(csv_clicks, table_clicks, *args):
             try:
-                filters = form_state(args[:-2], args[-1], args[-2])
+                filters = form_state(args[:-2], args[-2], args[-1])
                 rows, projection = matching_rows(filters), data_index()
                 columns = ["id", "identifier", "nativeIdentifier", "formula", "compoundSystem", "elements", "numberOfClusters",
                            "clusterSizes", "pointGroups", "clusterLatticeSpaceGroup", "predictedDimensionality", "minimumAverageDistance",
