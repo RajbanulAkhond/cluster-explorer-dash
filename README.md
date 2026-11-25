@@ -113,8 +113,11 @@ Each atom has an explicit row with `materialId`, `clusterIndex`, `memberIndex`,
 `siteIndex`, `imageA`, `imageB`, `imageC`, and `pointGroupRow`. Member indices
 preserve the certified atom order within each cluster. Signed image values are
 integer lattice translations. The app lazily fetches only the selected
-material's table and checks MPContribs' native table identity/checksum, structure
-fingerprint, and source-table bindings. `data.coreStructureId` pins the final
+material's table. The reviewed bounds allow 32 clusters, 16 members per cluster,
+site indices 0–255, point-group rows 0–31, and image offsets −2…2. At most 512
+atom rows are accepted per material; actual source-table/site bounds are also checked.
+The app checks MPContribs table identity/checksum, the structure fingerprint,
+and source-table bindings. `data.coreStructureId` pins the final
 structure of a specific Core-origin task; the viewer and CIF/JSON downloads
 retrieve it from `get_rester().materials.tasks.search(task_ids=[...])`.
 The current Summary API supplies property metadata independently. Elements come from the pinned structure;

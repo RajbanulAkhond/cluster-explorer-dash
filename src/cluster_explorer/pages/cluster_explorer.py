@@ -1397,7 +1397,7 @@ class ClusterExplorer(MPShipsApp):
             return structure.as_dict()
 
         def normalize_memberships(rows, mid):
-            if not isinstance(rows, list) or not 0 < len(rows) <= 20000:
+            if not isinstance(rows, list) or not 0 < len(rows) <= 512:
                 raise ValueError("Missing or oversized memberships")
             groups, seen = [], set()
             columns = {"materialId", "clusterIndex", "memberIndex", "siteIndex", "imageA", "imageB", "imageC", "pointGroupRow"}
@@ -1409,8 +1409,10 @@ class ClusterExplorer(MPShipsApp):
                     value = scalar(row[key])
                     if isinstance(value, str) and re.fullmatch(r"-?(?:0|[1-9][0-9]*)", value):
                         value = int(value)
-                    low = -100000 if key in {"imageA", "imageB", "imageC"} else 0
-                    high = 20000 if key in {"clusterIndex", "memberIndex", "pointGroupRow"} else 100000
+                    low, high = {
+                        "clusterIndex": (0, 31), "memberIndex": (0, 15), "siteIndex": (0, 255),
+                        "imageA": (-2, 2), "imageB": (-2, 2), "imageC": (-2, 2), "pointGroupRow": (0, 31),
+                    }[key]
                     if type(value) is not int or not low <= value <= high:
                         raise ValueError("Invalid membership index")
                     clean[key] = value
@@ -1433,7 +1435,7 @@ class ClusterExplorer(MPShipsApp):
         @cached(TTLCache(maxsize=32, ttl=900), condition=Condition())
         def remote_membership_rows(table_id, checksum, count):
             """Fetch only the selected material's viewer table, never at startup."""
-            if not re.fullmatch(r"[0-9a-f]{24}", table_id) or not re.fullmatch(r"[0-9a-f]{32}", checksum) or isinstance(count, bool) or not isinstance(count, int) or not 0 < count <= 20000:
+            if not re.fullmatch(r"[0-9a-f]{24}", table_id) or not re.fullmatch(r"[0-9a-f]{32}", checksum) or isinstance(count, bool) or not isinstance(count, int) or not 0 < count <= 512:
                 raise ValueError("Invalid membership table identity or size")
             client = get_rester(use_document_model=False, mute_progress_bars=True).contribs
             answer = client.tables.queryTables(id__in=[table_id], per_page=1, data_per_page=1000,
