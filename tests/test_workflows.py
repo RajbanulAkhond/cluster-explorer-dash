@@ -346,6 +346,8 @@ class MainWorkflows(unittest.TestCase):
                 self.viewer()
                 expect(self.control("highlight-status")).to_be_empty(timeout=30000)
                 expect(self.control("crystal_legend_container")).to_contain_text("Cluster atoms (")
+                task_id = {"mp-29950": "aaaelbxq", "mp-4474": "aaaelmrg", "mp-673706": "aaagacdh"}[mid]
+                expect(self.control("structure-status")).to_contain_text(f"Reference structure: {task_id}.")
         self.select("mp-1103089")
         expect(self.control("material-details").get_by_role("link", name=re.compile(r"^ICSD \d+$")).first).to_have_attribute(
             "href", re.compile(r"^https://www\.ccdc\.cam\.ac\.uk/structures/Search\?Ccdcid=%20\d+&DatabaseToSearch=Published$"))

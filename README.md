@@ -109,20 +109,28 @@ counts come from the complete live export rather than a fixed material count.
 ## Remaining staging checks
 
 Cluster highlighting uses an optional, viewer-only `clusterMemberships` table.
-Its four columns are `materialId`, `clusterIndex`, `siteReferences`, and
-`pointGroupRow`. References such as `2@(1,0,-1)` include periodic offsets;
-bare indices mean zero offsets. The app lazily fetches only the selected
+Each atom has an explicit row with `materialId`, `clusterIndex`, `memberIndex`,
+`siteIndex`, `imageA`, `imageB`, `imageC`, and `pointGroupRow`. Member indices
+preserve the certified atom order within each cluster. Signed image values are
+integer lattice translations. The app lazily fetches only the selected
 material's table and checks MPContribs' native table identity/checksum, structure
-fingerprint, and source-table bindings. Elements come from the summary structure;
+fingerprint, and source-table bindings. `data.coreStructureId` pins the final
+structure of a specific Core-origin task; the viewer and CIF/JSON downloads
+retrieve it from `get_rester().materials.tasks.search(task_ids=[...])`.
+The current Summary API supplies property metadata independently. Elements come from the pinned structure;
+the optional Spin display reads site magnetic moments from that same task's
+OUTCAR output, without changing the bound geometry.
 point groups and distances come from the existing tables. The new table is not
 rendered in the app or included in normal scientific-table exports. The original
 `clusters` and `clusterPointGroups` tables remain unchanged. Unavailable/stale data shows
 "Cluster highlighting isn't available for this material" and leave the normal
-crystal view usable.
+crystal view usable. Legacy contributions without a pin use Summary geometry;
+a failed pinned-task request never substitutes a newer Summary structure.
 
 Before tables are uploaded, set `CLUSTER_EXPLORER_HIGHLIGHT_DIR` to the
 external package's `materials/` directory for local testing. These JSON files
-are offline caches, not attachments or upload artifacts. A remote
+are offline caches, not attachments or upload artifacts. Use the
+`core-structure-highlight-v2` package; older compact caches are rejected. A remote
 highlighting record is authoritative and never falls back to an older local
 file. Local data and credentials are not included in the deployable app.
 
@@ -140,7 +148,8 @@ uv run --locked python run_app.py
 ```
 
 Choose one of those examples and leave **Cluster atoms** enabled. Structures
-still come directly from MP's Summary API. Point groups and mean distances come
+come directly from MP's task API using each saved `coreStructureId`.
+Point groups and mean distances come
 from the existing contribution tables; the cache supplies only atom membership
 and validation metadata. A structure/table mismatch keeps highlighting off rather
 than applying potentially incorrect site indices. Other materials can still show
