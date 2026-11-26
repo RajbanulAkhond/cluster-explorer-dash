@@ -178,7 +178,7 @@ class ClusterExplorer(MPShipsApp):
                     html.P("Transition-metal clusters in Materials Project crystals, with cluster geometry, symmetry, dimensionality, and flat-band data.", className="subtitle is-6"),
                 ]),
             ], className="ce-header"),
-            html.Div(id=self.id("project-status"), className="ce-project-status", children="Loading materials…"),
+            html.Div(id=self.id("project-status"), className="ce-project-status"),
             html.Div(id=self.id("index-warning"), className="help"),
             html.Div(id=self.id("url-warning"), className="help", role="status"),
             html.Div([
@@ -223,12 +223,17 @@ class ClusterExplorer(MPShipsApp):
                     ], className="ce-filters box"),
                 ], className="ce-sidebar"),
                 html.Main([
-                    html.Div(id=self.id("statistics"), className="ce-statistics", role="status"),
+                    dcc.Loading([dcc.Store(id=self.id("index-ready")),
+                        html.Div(id=self.id("statistics"), className="ce-statistics", role="status")],
+                        id=self.id("index-loading"), type="dot", color="#328086", delay_show=200,
+                        parent_style={"minHeight": "3rem"},
+                        target_components={self.id("index-ready"): "data", self.id("statistics"): "children"}),
                     html.Details([
                         html.Summary("Elements", className="ce-periodic-summary", title="Match all selected elements."),
-                        html.Div(html.Div(mpc.PeriodicContext(mpc.PeriodicTableInput(
+                        html.Div(mpc.PeriodicContext(mpc.PeriodicTableInput(
                             id=self.id("periodic"), maxElementSelectable=8, forceTableLayout="compact",
-                        )), key="periodic-0"), id=self.id("periodic-host")),
+                        ), id=self.id("periodic-context"), enabledElements=[], forwardOuterChange=True),
+                            id=self.id("periodic-host")),
                     ], className="box ce-periodic", open=True),
                     html.Section([
                         html.Div([
@@ -271,7 +276,8 @@ class ClusterExplorer(MPShipsApp):
                             dashGridOptions={"rowSelection": {"mode": "singleRow", "checkboxes": False,
                                                                "enableClickSelection": True}},
                             className="ag-theme-quartz", style={"height": "360px"},
-                        ), type="dot"),
+                        ), id=self.id("results-loading"), type="dot", color="#328086", delay_show=200,
+                            target_components={self.id("results"): "rowData"}),
                         html.Div([
                             html.Button("Previous", id=self.id("previous"), className="button is-small", disabled=True),
                             html.Span(id=self.id("page-label")),
@@ -289,7 +295,10 @@ class ClusterExplorer(MPShipsApp):
                     html.H2("Selected cluster material", className="title is-4"),
                     html.Span(id=self.id("selected-badge"), className="tag is-link is-light"),
                 ], className="ce-section-heading"),
-                dcc.Loading(html.Div(id=self.id("material-details")), type="dot"),
+                dcc.Loading([dcc.Store(id=self.id("material-response")), html.Div(id=self.id("material-details"))],
+                    id=self.id("material-loading"), type="dot", color="#328086", delay_show=200,
+                    parent_style={"minHeight": "3rem"},
+                    target_components={self.id("material-response"): "data", self.id("material-details"): "children"}),
                 html.Div(id=self.id("structure-status"), className="ce-structure-status"),
                 html.Details([
                     html.Summary("Viewer settings"),
@@ -317,7 +326,7 @@ class ClusterExplorer(MPShipsApp):
                         html.Button("Contribution JSON", id=self.id("export-material"), className="button is-small", title="Download this contribution."),
                     ], className="ce-viewer-actions"),
                 ], className="ce-filter-group"),
-                html.Div(mpc.CrystalToolkitScene([
+                dcc.Loading([dcc.Store(id=self.id("viewer-response")), html.Div(mpc.CrystalToolkitScene([
                     None, html.Div([
                         html.Img(id=self.id("orientation-axes"), className="ce-orientation-axes", alt="Cartesian x/y/z orientation",
                                  style={"display": "none"}),
@@ -332,7 +341,9 @@ class ClusterExplorer(MPShipsApp):
                     showExportButton=False, showImageButton=True, showPositionButton=False),
                          id=self.id("viewer-wrapper"), className="ce-viewer", style={"display": "none"},
                          **{"data-scene-key": ""},
-                         **{"aria-label": "Interactive crystal: drag to rotate, Shift-drag to move, scroll to zoom; double-click an atom to change its element color."}),
+                         **{"aria-label": "Interactive crystal: drag to rotate, Shift-drag to move, scroll to zoom; double-click an atom to change its element color."})],
+                    id=self.id("viewer-loading"), type="dot", color="#328086", delay_show=200,
+                    parent_style={"minHeight": "3rem"}, target_components={self.id("viewer-response"): "data"}),
                 html.Div(id=self.id("viewer-status"), className="help", role="status"),
                 html.Div(id=self.id("highlight-status"), className="help ce-highlight-status", role="status"),
                 html.Dialog([
@@ -348,8 +359,12 @@ class ClusterExplorer(MPShipsApp):
                 ], id=self.id("color-dialog"), className="ce-color-dialog",
                    **{"aria-labelledby": self.id("color-dialog-title")}),
                 html.Div(id=self.id("contribution-tables")),
-                html.Section(html.Div(id=self.id("battery-details")),
-                             id=self.id("battery-section"), className="ce-table-section", **{"aria-live": "polite"}),
+                dcc.Loading([dcc.Store(id=self.id("battery-response")),
+                    html.Section(html.Div(id=self.id("battery-details")),
+                        id=self.id("battery-section"), className="ce-table-section", **{"aria-live": "polite"})],
+                    id=self.id("battery-loading"), type="dot", color="#328086", delay_show=200,
+                    parent_style={"minHeight": "3rem"},
+                    target_components={self.id("battery-response"): "data", self.id("battery-details"): "children"}),
             ], className="box ce-material"),
             html.Footer([
                 html.Details([
@@ -357,6 +372,7 @@ class ClusterExplorer(MPShipsApp):
                     html.P(id=self.id("data-availability")),
                     html.P("Cluster atoms are highlighted; the rest is muted and translucent. Double-click an atom to change its element color. Point groups describe cluster types; bonds are for display."),
                     html.P("Battery filters use the contributed snapshot; battery tables show current MP records. Full property ranges include unknown values; narrowed ranges exclude them."),
+                    html.P("The viewer uses saved MP structures where available; MP property values remain current."),
                 ], className="ce-data-notes"),
                 html.P([
                     html.A("Cluster Finder", href="https://github.com/RajbanulAkhond/Cluster_Finder", target="_blank", rel="noopener noreferrer"),
@@ -367,13 +383,11 @@ class ClusterExplorer(MPShipsApp):
             ], className="ce-footer"),
             dcc.Store(id=self.id("page"), data=0),
             dcc.Store(id=self.id("selection"), data="mp-1003545"),
-            dcc.Store(id=self.id("index-ready")),
             dcc.Store(id=self.id("range-context")),
-            dcc.Store(id=self.id("material-response")),
-            dcc.Store(id=self.id("viewer-response")),
+            dcc.Store(id=self.id("periodic-request")),
+            dcc.Store(id=self.id("search-context")),
             dcc.Store(id=self.id("viewer-applied")),
             dcc.Store(id=self.id("element-colors"), data={}, storage_type="memory"),
-            dcc.Store(id=self.id("battery-response")),
             dcc.Download(id=self.id("download")),
             dcc.Download(id=self.id("structure-download")),
             dcc.Download(id=self.id("image-download")),
@@ -389,9 +403,14 @@ class ClusterExplorer(MPShipsApp):
         numeric_specs, choice_specs = self.numeric_filters, self.choice_filters
         page_size = 50
 
+        @lru_cache(maxsize=1)
+        def mp_client():
+            return get_rester(use_document_model=False, mute_progress_bars=True)
+
         class ClusterRow(BaseModel):
             model_config = ConfigDict(extra="forbid", allow_inf_nan=False)
             materialId: str
+            symbol: str | None = Field(default=None, min_length=1, max_length=16)
             size: int = Field(ge=2, le=4096)
             averageDistance: float = Field(gt=0)
             elements: str
@@ -628,7 +647,7 @@ class ClusterExplorer(MPShipsApp):
         def data_index():
             started = time.perf_counter()
             timings = {}
-            rester = get_rester(use_document_model=False, mute_progress_bars=True)
+            rester = mp_client()
             client = rester.contribs
             timings["client"] = round(time.perf_counter() - started, 3)
             stage = time.perf_counter()
@@ -717,7 +736,8 @@ class ClusterExplorer(MPShipsApp):
                     "deprecated": doc.get("deprecated"), "nativeAvailable": bool(doc),
                     "nativeSymmetry": doc.get("symmetry"), "lastModified": str(record.get("last_modified", "")),
                     "tableChecksums": {t["name"]: t["md5"] for t in record["tables"]},
-                    "clusterHighlighting": data.get("clusterHighlighting"),
+                    "highlightingUnavailableReason": scalar(data.get("highlightingUnavailableReason")),
+                    "coreStructureId": scalar(data.get("coreStructureId")),
                     "membershipTable": next((t for t in record["tables"] if t["name"] == "clusterMemberships"), None),
                 }
                 for key in ["band_gap", "energy_above_hull", "formation_energy_per_atom", "total_magnetization"]:
@@ -788,24 +808,42 @@ class ClusterExplorer(MPShipsApp):
         def in_range(value, low, high):
             return (low is None and high is None) or (value is not None and (low is None or value >= low) and (high is None or value <= high))
 
+        def text_rows(query, mode):
+            """The text search always starts from the complete contributed index."""
+            rows = data_index()["rows"]
+            query = (query or "").strip().casefold()
+            if not query:
+                return list(rows)
+            if mode in {"all", "identifier"}:
+                try:
+                    key = alias(query)
+                    exact = [row for row in rows if alias(row["identifier"]) == key]
+                    if exact:
+                        return exact
+                except ValueError:
+                    pass
+            if mode == "chemical":
+                try:
+                    wanted = {str(Element(symbol.strip())) for symbol in query.title().split("-")}
+                except ValueError:
+                    return []
+                return [row for row in rows if wanted == set(row["elements"])]
+            columns = [mode] if mode in {"formula", "identifier"} else [
+                "identifier", "nativeIdentifier", "formula", "compoundSystem", "clusterLatticeSpaceGroup", "pointGroups"]
+            if mode == "identifier":
+                columns.append("nativeIdentifier")
+            return [row for row in rows if any(query in str(row[column]).casefold() for column in columns)]
+
+        def text_elements(query, mode):
+            if not (query or "").strip():
+                return []
+            rows = text_rows(query, mode)
+            # An intersection, not a union or guessed formula parse: every text
+            # match already contains these elements, so auto-selection is neutral.
+            common = set.intersection(*(set(row["elements"]) for row in rows)) if rows else set()
+            return sorted(common) if len(common) <= 8 else []
+
         def matches(row, filters):
-            query = filters["query"].casefold()
-            if query:
-                mode = filters["searchMode"]
-                if mode == "chemical":
-                    try:
-                        wanted = {str(Element(s)) for s in filters["query"].split("-")}
-                    except ValueError:
-                        return False
-                    if wanted != set(row["elements"]):
-                        return False
-                elif mode in {"formula", "identifier"}:
-                    if query not in str(row[mode]).casefold() and (mode != "identifier" or query not in row["nativeIdentifier"].casefold()):
-                        return False
-                elif not any(query in str(row[k]).casefold() for k in [
-                    "identifier", "nativeIdentifier", "formula", "compoundSystem", "clusterLatticeSpaceGroup", "pointGroups",
-                ]):
-                    return False
             if not set(filters["elements"]).issubset(row["elements"]):
                 return False
             if filters["availability"] in {"flat", "both"} and not row["hasFlatData"]:
@@ -839,7 +877,7 @@ class ClusterExplorer(MPShipsApp):
 
         def matching_rows(filters):
             filters = normalize(filters)
-            rows = [row for row in data_index()["rows"] if matches(row, filters)]
+            rows = [row for row in text_rows(filters["query"], filters["searchMode"]) if matches(row, filters)]
             sort_key, reverse = filters.get("sort", "identifier"), filters.get("direction") == "desc"
             known = [r for r in rows if r[sort_key] is not None]
             unknown = [r for r in rows if r[sort_key] is None]
@@ -850,10 +888,12 @@ class ClusterExplorer(MPShipsApp):
         ui_control_keys = [key for key in control_keys if key not in {name + bound for name, _, _ in numeric_specs for bound in ["Min", "Max"]}] + [
             key + "Range" for key, _, _ in numeric_specs]
         control_ids = [self.id("search" if key == "query" else key) for key in ui_control_keys]
-        filter_inputs = [Input(control_id, "value") for control_id in control_ids] + [Input(self.id("range-context"), "data")]
-        filter_states = [State(control_id, "value") for control_id in control_ids] + [State(self.id("range-context"), "data")]
+        filter_inputs = [Input(control_id, "value") for control_id in control_ids] + [
+            Input(self.id("range-context"), "data"), Input(self.id("search-context"), "data")]
+        filter_states = [State(control_id, "value") for control_id in control_ids] + [
+            State(self.id("range-context"), "data"), State(self.id("search-context"), "data")]
 
-        def form_state(values, periodic, range_context):
+        def form_state(values, range_context, search_context=None):
             if range_context is not None and not isinstance(range_context, dict):
                 raise ValueError("Invalid property range context")
             raw = dict(zip(ui_control_keys, values))
@@ -876,7 +916,13 @@ class ClusterExplorer(MPShipsApp):
                     bounds = (saved["bounds"] if selected == saved["value"] else
                               [None if selected[0] == low else selected[0], None if selected[1] == high else selected[1]])
                 raw[key + "Min"], raw[key + "Max"] = bounds
-            return normalize(raw | {"elements": elements(periodic)})
+            key = [(raw.get("query") or "").strip(), raw.get("searchMode") or "all"]
+            # A new query and the periodic-table redraw are separate callbacks.
+            # Never let the old element selection narrow the new query meanwhile.
+            selected = (elements({"enabledElements": search_context.get("elements", [])})
+                        if (search_context or {}).get("key") == key
+                        else text_elements(*key))
+            return normalize(raw | {"elements": selected})
 
         for key, _, _ in numeric_specs:
             # Keep value feedback instant during dragging without API callbacks.
@@ -956,22 +1002,57 @@ class ClusterExplorer(MPShipsApp):
             *[Output(control_id, "value") for control_id in control_ids],
             *[Output(self.id(key + "Range"), prop) for key, _, _ in numeric_specs for prop in ["min", "max", "step", "marks", "disabled"]],
             Output(self.id("range-context"), "data"),
-            Output(self.id("periodic-host"), "children"), Output(self.id("url-warning"), "children"),
+            Output(self.id("periodic-request"), "data"), Output(self.id("url-warning"), "children"),
+            Output(self.id("example"), "value"),
             Input(self.id("reset"), "n_clicks"), Input("mp-url", "hash"), Input(self.id("index-ready"), "data"),
+            Input(self.id("example"), "value"),
         )
-        def restore(reset_clicks, url_hash, ready):
+        def restore(reset_clicks, url_hash, ready, example):
+            if ctx.triggered_id == self.id("example") and not example:
+                raise PreventUpdate
             try:
                 resetting = ctx.triggered_id == self.id("reset")
-                filters = normalize({}) if resetting else url_state(url_hash)[0]
-                warning = "" if resetting else retired_filter_warning(url_hash)
+                choosing_example = ctx.triggered_id == self.id("example")
+                filters = (normalize({"query": identifier(example), "searchMode": "identifier"}) if choosing_example
+                           else normalize({}) if resetting else url_state(url_hash)[0])
+                warning = "" if resetting or choosing_example else retired_filter_warning(url_hash)
+                if choosing_example or (filters["query"] and "elements" not in parse_qs((url_hash or "").lstrip("#"))):
+                    filters["elements"] = text_elements(filters["query"], filters["searchMode"])
             except (ValueError, TypeError):
                 filters, warning = normalize({}), "This search link is invalid or unsupported. Default filters are shown."
-            periodic = html.Div(mpc.PeriodicContext(mpc.PeriodicTableInput(
-                id=self.id("periodic"), maxElementSelectable=8, forceTableLayout="compact",
-            ), enabledElements=filters["elements"], forwardOuterChange=True), key=f"periodic-{reset_clicks}-{url_hash}")
+            request = {"key": [filters["query"], filters["searchMode"]],
+                       "elements": filters["elements"], "revision": str(time.monotonic_ns())}
             values, properties, range_context = slider_settings(filters, (ready or {}).get("ranges", {}))
             return (*[filters[key] for key in ui_control_keys if not key.endswith("Range")], *values,
-                    *properties, range_context, periodic, warning)
+                    *properties, range_context, request, warning, example if choosing_example else None)
+
+        @app.callback(
+            Output(self.id("periodic-context"), "enabledElements"), Output(self.id("search-context"), "data"),
+            Input(self.id("search"), "value"), Input(self.id("searchMode"), "value"),
+            Input(self.id("periodic-request"), "data"), Input(self.id("periodic"), "state"),
+            Input(self.id("search"), "n_submit"),
+            State(self.id("search-context"), "data"),
+        )
+        def synchronize_elements(query, mode, request, periodic_state, _submitted, previous):
+            key = [(query or "").strip(), mode or "all"]
+            request, previous = request or {}, previous or {}
+            if request.get("key") == key and request.get("revision") != previous.get("request"):
+                selected = elements({"enabledElements": request.get("elements", [])})
+            elif previous.get("key") == key and ctx.triggered_id == self.id("periodic"):
+                selected = elements(periodic_state)
+                if selected == previous.get("elements"):
+                    raise PreventUpdate
+                # Keep the provider controlled, including manual edits. Otherwise
+                # returning to the same automatic list can leave old UI choices.
+                return selected, {**previous, "elements": selected}
+            elif ctx.triggered_id in {self.id("search"), self.id("searchMode")} or previous.get("key") != key:
+                # Even A -> B -> A edits replace prior manual choices; do not
+                # mistake a returned-to query for an unchanged filter session.
+                selected = text_elements(*key)
+            else:
+                raise PreventUpdate
+            context = {"key": key, "request": request.get("revision"), "elements": selected}
+            return selected, context
 
         def result_row(row):
             # Keep one size per cluster, including repeats. Point-group records
@@ -995,19 +1076,19 @@ class ClusterExplorer(MPShipsApp):
             Output(self.id("project-status"), "children"), Output(self.id("elements-label"), "children"),
             Output(self.id("statistics"), "children"),
             Output(self.id("data-availability"), "children"),
-            *filter_inputs, Input(self.id("periodic"), "state"), Input(self.id("index-ready"), "data"),
+            *filter_inputs, Input(self.id("index-ready"), "data"),
             Input(self.id("previous"), "n_clicks"), Input(self.id("next"), "n_clicks"),
             State(self.id("page"), "data"), State(self.id("selection"), "data"),
         )
         def search(*args):
             values = args[:len(ui_control_keys)]
-            range_context, periodic, ready, previous, next_click, page, selected = args[len(ui_control_keys):]
+            range_context, search_context, ready, previous, next_click, page, selected = args[len(ui_control_keys):]
             if not ready:
-                return [], "Loading…", 0, "", True, True, "Building the complete scientific index…", "", [], ""
+                return [], "Loading…", 0, "", True, True, "", "", [], ""
             try:
                 if ready.get("error"):
                     raise ValueError("Index unavailable")
-                filters = form_state(values, periodic, range_context)
+                filters = form_state(values, range_context, search_context)
                 rows, projection = matching_rows(filters), data_index()
                 page = max(0, min(int(page or 0), max(0, (len(rows) - 1) // page_size)))
                 if ctx.triggered_id == self.id("next"):
@@ -1054,11 +1135,11 @@ class ClusterExplorer(MPShipsApp):
 
         @app.callback(
             Output(self.id("share-search"), "href"), *filter_inputs,
-            Input(self.id("periodic"), "state"), Input(self.id("selection"), "data"),
+            Input(self.id("selection"), "data"),
         )
         def search_link(*args):
             try:
-                return share_url(form_state(args[:-3], args[-2], args[-3]), args[-1])
+                return share_url(form_state(args[:-3], args[-3], args[-2]), args[-1])
             except (ValueError, TypeError):
                 return ""
 
@@ -1069,7 +1150,9 @@ class ClusterExplorer(MPShipsApp):
         def select(cell, example, url_hash):
             if ctx.triggered_id == self.id("results") and cell:
                 value = next((r["identifier"] for r in data_index()["rows"] if r["id"] == cell.get("rowId")), "invalid")
-            elif ctx.triggered_id == self.id("example") and example:
+            elif ctx.triggered_id == self.id("example"):
+                if not example:
+                    raise PreventUpdate
                 value = example
             else:
                 try:
@@ -1091,12 +1174,36 @@ class ClusterExplorer(MPShipsApp):
             if row is None:
                 raise ValueError("Material is not in the public contributed dataset")
             native, notice = None, ""
+            pinned_id, reference, reference_error = None, None, ""
+            authoritative = any(row.get(k) is not None for k in ("coreStructureId", "highlightingUnavailableReason", "membershipTable"))
             try:
-                rester = get_rester(use_document_model=False, mute_progress_bars=True)
+                binding = row if authoritative else local_highlight_record(mid) if highlight_directory else {}
+                if binding and not authoritative:
+                    # Preview the new column only when all existing source values agree.
+                    old_rows = [{k:v for k,v in r.items() if k != "symbol"} for r in row["clusters"]]
+                    new_rows = [{k:v for k,v in r.items() if k != "symbol"} for r in binding["clusters"]]
+                    if old_rows != new_rows or row["clusterPointGroups"] != binding["clusterPointGroups"]:
+                        raise ValueError("Local preview source tables differ")
+                    row = {**row, "clusters": binding["clusters"],
+                           "highlightingUnavailableReason": binding["highlightingUnavailableReason"],
+                           "_localHighlightingPreview": True}
+                if binding.get("coreStructureId") is not None:
+                    pinned_id = core_structure_id(binding["coreStructureId"])
+                    reference = pinned_structure(pinned_id)
+                elif binding.get("membershipTable") is not None or binding.get("clusterMemberships"):
+                    reference_error = "Pinned structure reference is missing; no Summary substitution is used."
+            except (FileNotFoundError, ValueError) as error:
+                reference_error = "Pinned structure could not be validated; no Summary substitution is used."
+            except Exception as error:
+                reference_error = "Pinned structure could not be retrieved; no Summary substitution is used."
+            try:
+                rester = mp_client()
                 for deprecated in [False, True]:
-                    docs = rester.materials.summary.search(material_ids=[mid], deprecated=deprecated,
-                        fields=["material_id", "formula_pretty", "deprecated", "structure", "band_gap", "energy_above_hull",
-                                "formation_energy_per_atom", "total_magnetization", "symmetry", "database_IDs"])
+                    fields = ["material_id", "formula_pretty", "deprecated", "band_gap", "energy_above_hull",
+                              "formation_energy_per_atom", "total_magnetization", "symmetry", "database_IDs"]
+                    if pinned_id is None and not reference_error:
+                        fields.append("structure")
+                    docs = rester.materials.summary.search(material_ids=[mid], deprecated=deprecated, fields=fields)
                     if docs:
                         if len(docs) != 1 or alias(docs[0]["material_id"]) != alias(mid):
                             raise ValueError("Ambiguous material association")
@@ -1109,8 +1216,19 @@ class ClusterExplorer(MPShipsApp):
                         break
             except Exception as error:
                 logger.warning("Native material read failed: %s", type(error).__name__)
-                notice = "Native MP structure could not be retrieved. Contributed results remain accessible."
+                notice = "Current MP properties could not be retrieved. Contributed results remain accessible."
+            if pinned_id is None and not reference_error:
+                reference = (native or {}).get("structure")
+            row = {**row, "coreStructureId": pinned_id}
+            source = None if reference_error else "materials.tasks" if pinned_id else "materials.summary"
+            if pinned_id:
+                notice = (notice + " " if notice else "") + f"Reference structure: {pinned_id}."
+            if reference_error:
+                notice = reference_error
+                reference = None
             return {"identifier": mid, "row": copy.deepcopy(row), "native": native, "notice": notice,
+                    "coreStructureId": pinned_id, "referenceStructure": reference,
+                    "structureSource": source, "structureError": reference_error,
                     "revision": projection["revision"], "builtAt": projection["builtAt"]}
 
         @app.callback(Output(self.id("material-response"), "data"), Input(self.id("selection"), "data"))
@@ -1220,11 +1338,11 @@ class ClusterExplorer(MPShipsApp):
         @app.callback(
             Output(self.id("download"), "data"), Output(self.id("export-status"), "children"),
             Input(self.id("export"), "n_clicks"), Input(self.id("export-tables"), "n_clicks"),
-            *filter_states, State(self.id("periodic"), "state"), prevent_initial_call=True,
+            *filter_states, prevent_initial_call=True,
         )
         def export(csv_clicks, table_clicks, *args):
             try:
-                filters = form_state(args[:-2], args[-1], args[-2])
+                filters = form_state(args[:-2], args[-2], args[-1])
                 rows, projection = matching_rows(filters), data_index()
                 columns = ["id", "identifier", "nativeIdentifier", "formula", "compoundSystem", "elements", "numberOfClusters",
                            "clusterSizes", "pointGroups", "clusterLatticeSpaceGroup", "predictedDimensionality", "minimumAverageDistance",
@@ -1262,52 +1380,77 @@ class ClusterExplorer(MPShipsApp):
                 raise ValueError("Supercell dimensions must be integers from 1 to 3")
             return tuple(int(v) for v in values)
 
-        def parse_site_references(value):
-            """Same bounded, ordered grammar as the Lux ClusterMembership model."""
-            if not isinstance(value, str) or not 0 < len(value) <= 200000:
-                raise ValueError("Invalid site references")
-            tokens = value.split(";")
-            if len(tokens) > 20000:
-                raise ValueError("Too many cluster members")
-            members = []
-            for token in tokens:
-                match = re.fullmatch(r"(0|[1-9][0-9]*)(?:@\((-?(?:0|[1-9][0-9]*)),(-?(?:0|[1-9][0-9]*)),(-?(?:0|[1-9][0-9]*))\))?", token.strip())
-                if match is None:
-                    raise ValueError("Invalid site/image notation")
-                member = tuple(int(v) if v is not None else 0 for v in match.groups())
-                if any(abs(v) > 100000 for v in member):
-                    raise ValueError("Site/image exceeds the reviewed budget")
-                members.append(member)
-            if len(members) != len(set(members)):
-                raise ValueError("Duplicate cluster member")
-            return members
+        def core_structure_id(value):
+            value = scalar(value)
+            if not isinstance(value, str) or not re.fullmatch(r"mp-(?:[0-9]{1,12}|[a-z]{1,16})", value):
+                raise ValueError("Invalid Core structure task ID")
+            return value
+
+        def core_task_key(value):
+            value = scalar(value)
+            if not isinstance(value, str) or not re.fullmatch(r"(?:mp-)?(?:[0-9]{1,12}|[a-z]{1,16})", value):
+                raise ValueError("Invalid task response identifier")
+            return str(AlphaID(value.split("-")[-1], padlen=8))
+
+        @cached(TTLCache(maxsize=32, ttl=900), condition=Condition())
+        def pinned_structure(core_id):
+            docs = mp_client().materials.tasks.search(
+                task_ids=[core_structure_id(core_id)],
+                fields=["task_id", "structure", "output.outcar.magnetization"], num_chunks=1, chunk_size=10)
+            if len(docs) != 1 or core_task_key(docs[0]["task_id"]) != core_task_key(core_id):
+                raise ValueError("Missing or ambiguous pinned task")
+            raw = docs[0].get("structure")
+            structure = raw.copy() if isinstance(raw, Structure) else Structure.from_dict(raw)
+            if not 0 < len(structure) <= 2000:
+                raise ValueError("Pinned structure exceeds the site budget")
+            # Core task geometry can omit site properties. Read moments only
+            # from this same task, indexed in its output structure order.
+            output = docs[0].get("output") or {}
+            moments = (output.get("outcar") or {}).get("magnetization")
+            if "magmom" not in structure.site_properties and isinstance(moments, list) and len(moments) == len(structure):
+                values = [entry.get("tot") if isinstance(entry, dict) else None for entry in moments]
+                if all(type(value) in (int, float) and math.isfinite(value) for value in values):
+                    structure.add_site_property("magmom", values)
+            return structure.as_dict()
 
         def normalize_memberships(rows, mid):
-            if not isinstance(rows, list) or not 0 < len(rows) <= 20000:
+            if not isinstance(rows, list) or not 0 < len(rows) <= 512:
                 raise ValueError("Missing or oversized memberships")
-            clean = []
+            groups, seen = [], set()
+            columns = {"materialId", "clusterIndex", "memberIndex", "siteIndex", "imageA", "imageB", "imageC"}
             for row in rows:
-                if set(row) != {"materialId", "clusterIndex", "siteReferences", "pointGroupRow"} or row["materialId"] != mid:
+                if not isinstance(row, dict) or set(row) != columns or row["materialId"] != mid:
                     raise ValueError("Cross-material or malformed membership")
-                indices = []
-                for key in ("clusterIndex", "pointGroupRow"):
+                clean = {"materialId": mid}
+                for key in columns - {"materialId"}:
                     value = number(row[key])
-                    if isinstance(scalar(row[key]), bool) or value is None or value != int(value) or not 0 <= value <= 100000:
+                    low, high = {
+                        "clusterIndex": (0, 31), "memberIndex": (0, 15), "siteIndex": (0, 255),
+                        "imageA": (-2, 2), "imageB": (-2, 2), "imageC": (-2, 2),
+                    }[key]
+                    if value is None or value != int(value) or not low <= value <= high:
                         raise ValueError("Invalid membership index")
-                    indices.append(int(value))
-                refs = parse_site_references(row["siteReferences"])
-                text = "; ".join(str(i) + (f"@({a},{b},{c})" if (a,b,c) != (0,0,0) else "") for i,a,b,c in refs)
-                clean.append({"materialId": mid, "clusterIndex": indices[0], "siteReferences": text, "pointGroupRow": indices[1]})
-            if [r["clusterIndex"] for r in clean] != list(range(len(clean))):
-                raise ValueError("Missing, reordered, or duplicate membership instances")
-            return clean
+                    clean[key] = int(value)
+                index = clean["clusterIndex"]
+                if index == len(groups):
+                    groups.append([])
+                    seen = set()
+                if index != len(groups) - 1 or clean["memberIndex"] != len(groups[-1]):
+                    raise ValueError("Missing, duplicate or reordered cluster/member index")
+                group = groups[-1]
+                ref = tuple(clean[k] for k in ("siteIndex", "imageA", "imageB", "imageC"))
+                if ref in seen:
+                    raise ValueError("Duplicate cluster member")
+                seen.add(ref)
+                group.append(clean)
+            return groups
 
         @cached(TTLCache(maxsize=32, ttl=900), condition=Condition())
         def remote_membership_rows(table_id, checksum, count):
             """Fetch only the selected material's viewer table, never at startup."""
-            if not re.fullmatch(r"[0-9a-f]{24}", table_id) or not re.fullmatch(r"[0-9a-f]{32}", checksum) or isinstance(count, bool) or not isinstance(count, int) or not 0 < count <= 20000:
+            if not re.fullmatch(r"[0-9a-f]{24}", table_id) or not re.fullmatch(r"[0-9a-f]{32}", checksum) or isinstance(count, bool) or not isinstance(count, int) or not 0 < count <= 512:
                 raise ValueError("Invalid membership table identity or size")
-            client = get_rester(use_document_model=False, mute_progress_bars=True).contribs
+            client = mp_client().contribs
             answer = client.tables.queryTables(id__in=[table_id], per_page=1, data_per_page=1000,
                 _fields=["_all"], _request_options={"connect_timeout": 10, "timeout": 60}).result()
             if len(answer["data"]) != 1:
@@ -1321,69 +1464,78 @@ class ClusterExplorer(MPShipsApp):
                 if frame.attrs.get("md5") != checksum or frame.attrs.get("name") != "clusterMemberships":
                     raise ValueError("Membership pagination source changed")
                 columns, values, index = list(frame.columns), frame.values.tolist(), list(frame.index)
-            if columns != ["materialId", "clusterIndex", "siteReferences", "pointGroupRow"] or len(values) != count or list(map(str,index)) != [str(i) for i in range(count)] or any(len(v) != len(columns) for v in values):
+            if columns != ["materialId", "clusterIndex", "memberIndex", "siteIndex", "imageA", "imageB", "imageC"] or len(values) != count or list(map(str,index)) != [str(i) for i in range(count)] or any(len(v) != len(columns) for v in values):
                 raise ValueError("Incomplete or unexpected membership table")
             return [dict(zip(columns, v)) for v in values]
 
         def validate_highlight_file(record, mid):
-            if not isinstance(record, dict) or record.get("project") != project_key or record.get("materialId") != mid or record.get("policyVersion") != "summary-highlight-v1" or record.get("structureHashAlgorithm") != "ordered-structure-sha256-v1":
-                raise ValueError("Unsupported or cross-material local cache")
-            if not isinstance(record.get("clusterHighlighting"), dict):
-                raise ValueError("Missing highlighting metadata")
-            return record
+            if not isinstance(record, dict) or record.get("project") != project_key or record.get("materialId") != mid:
+                raise ValueError("Cross-material preview")
+            required = {"project", "materialId", "coreStructureId", "highlightingUnavailableReason",
+                        "clusters", "clusterPointGroups", "clusterMemberships"}
+            if set(record) != required:
+                raise ValueError("Unsupported preview contract")
+            if record["coreStructureId"] is not None:
+                core_structure_id(record["coreStructureId"])
+            if not isinstance(record["clusters"], list) or not 0 < len(record["clusters"]) <= 32:
+                raise ValueError("Missing preview clusters")
+            if not isinstance(record["clusterPointGroups"], list) or not 0 < len(record["clusterPointGroups"]) <= 32:
+                raise ValueError("Missing preview point groups")
+            clusters = [ClusterRow.model_validate(r).model_dump() for r in record["clusters"]]
+            groups = [PointGroupRow.model_validate(r).model_dump() for r in record["clusterPointGroups"]]
+            if any(r["materialId"] != mid for r in clusters + groups):
+                raise ValueError("Cross-material preview tables")
+            return {**record, "clusters": clusters, "clusterPointGroups": groups}
 
-        def highlight_record(mid, row):
-            """Remote metadata/table are authoritative; never mask a broken migration."""
-            metadata, table = row.get("clusterHighlighting"), row.get("membershipTable")
-            if metadata is not None or table is not None:
-                if not isinstance(metadata, dict):
-                    raise ValueError("Missing membership metadata")
-                metadata = {k: scalar(v) for k,v in metadata.items()}
-                if flag(metadata.get("isAvailable")) is not True:
-                    raise ValueError("Highlighting withheld")
-                if not isinstance(table, dict):
-                    raise ValueError("Missing membership table")
-                memberships = remote_membership_rows(table["id"], table["md5"], table["total_data_rows"])
-                return {"clusterHighlighting": metadata, "clusterMemberships": memberships}
+        def local_highlight_record(mid):
             if not highlight_directory:
-                raise ValueError("No highlighting data source")
+                return {}
             identifier(mid)
             root = Path(highlight_directory).expanduser().resolve()
             path = (root / (mid + ".json")).resolve()
             if path.parent != root:
                 raise ValueError("Invalid local cache path")
+            if not path.is_file():
+                return {}
             with path.open("rb") as stream:
                 content = stream.read(2000001)
             if len(content) > 2000000:
                 raise ValueError("Local cache exceeds reviewed size budget")
             return validate_highlight_file(json.loads(content), mid)
 
+        def highlight_record(mid, row):
+            """Membership table presence is authoritative for migrated records."""
+            table = row.get("membershipTable")
+            if table is not None or row.get("highlightingUnavailableReason") is not None:
+                if not isinstance(table, dict) or row.get("highlightingUnavailableReason") is not None:
+                    raise ValueError("Highlighting unavailable")
+                return {"coreStructureId": core_structure_id(row.get("coreStructureId")),
+                        "clusterMemberships": remote_membership_rows(table["id"], table["md5"], table["total_data_rows"])}
+            if row.get("coreStructureId") is not None and not row.get("_localHighlightingPreview"):
+                raise ValueError("Missing membership table")
+            record = local_highlight_record(mid)
+            if not record or record["highlightingUnavailableReason"] is not None:
+                raise ValueError("Highlighting unavailable")
+            return record
+
         def verified_cluster_details(mid, row, structure):
             """Check certified membership mapping; derive symbols/distances from source tables."""
             try:
                 record = highlight_record(mid, row)
-                meta = record["clusterHighlighting"]
-                if flag(meta.get("isAvailable")) is not True or meta.get("policyVersion") != "summary-highlight-v1" or meta.get("reason") is not None:
-                    raise ValueError("Highlighting withheld")
-                hashed = {"algorithm": "ordered-structure-sha256-v1",
-                    "lattice": [[float(v) for v in vector] for vector in structure.lattice.matrix],
-                    "sites": [{"species": sorted([[str(e),float(n)] for e,n in s.species.items()]),
-                               "fractional": [float(v) for v in s.frac_coords]} for s in structure]}
-                digest = hashlib.sha256(json.dumps(hashed,sort_keys=True,separators=(",",":"),allow_nan=False).encode()).hexdigest()
-                checksums = row["tableChecksums"]
-                if meta.get("structureHash") != digest or isinstance(scalar(meta.get("numberOfSites")), bool) or number(meta.get("numberOfSites")) != len(structure) or meta.get("clustersTableMd5") != checksums["clusters"] or meta.get("pointGroupsTableMd5") != checksums["clusterPointGroups"]:
-                    raise ValueError("Highlighting source changed")
+                if core_task_key(record.get("coreStructureId")) != core_task_key(row.get("coreStructureId")):
+                    raise ValueError("Pinned task reference differs")
                 memberships = normalize_memberships(record["clusterMemberships"], mid)
                 clusters, groups = row["clusters"], row["clusterPointGroups"]
                 if len(memberships) != len(clusters):
                     raise ValueError("Membership instance coverage differs")
                 details, symbols = {}, []
-                for membership in memberships:
-                    index, group_row = membership["clusterIndex"], membership["pointGroupRow"]
-                    if group_row >= len(groups):
-                        raise ValueError("Point-group reference out of range")
-                    symbol = groups[group_row]["symbol"]
-                    refs = parse_site_references(membership["siteReferences"])
+                for member_rows in memberships:
+                    membership = member_rows[0]
+                    index = membership["clusterIndex"]
+                    symbol = clusters[index].get("symbol")
+                    if symbol is None or symbol not in {g["symbol"] for g in groups}:
+                        raise ValueError("Missing or unknown cluster symbol")
+                    refs = [tuple(member[k] for k in ("siteIndex", "imageA", "imageB", "imageC")) for member in member_rows]
                     if any(site >= len(structure) or not structure[site].is_ordered for site,*_ in refs):
                         raise ValueError("Membership site out of bounds or disordered")
                     elements = [structure[site].specie.symbol for site,*_ in refs]
@@ -1411,9 +1563,11 @@ class ClusterExplorer(MPShipsApp):
 
         @cache.memoize(timeout=900)
         @cached(TTLCache(maxsize=12, ttl=900), condition=Condition())
-        def display_graph(mid, dimensions):
+        def display_graph(mid, dimensions, core_id=None):
             payload = material_payload(mid)
-            raw = (payload.get("native") or {}).get("structure")
+            if core_id != payload.get("coreStructureId"):
+                raise ValueError("Pinned reference changed during rendering")
+            raw = payload.get("referenceStructure")
             if not raw:
                 raise ValueError("Native structure is unavailable")
             structure = Structure.from_dict(raw)
@@ -1699,13 +1853,13 @@ class ClusterExplorer(MPShipsApp):
             try:
                 dims = supercell_dimensions([x, y, z])
                 source = material_payload(mid)
-                raw = (source.get("native") or {}).get("structure")
+                raw = source.get("referenceStructure")
                 if raw:
                     cluster_details, highlight_warning = verified_cluster_details(mid, source["row"], Structure.from_dict(raw))
                 else:
                     cluster_details, highlight_warning = {}, "Cluster highlighting isn't available for this material"
                 cluster_sites = set(cluster_details)
-                graph = StructureGraph.from_dict(copy.deepcopy(display_graph(mid, dims)))
+                graph = StructureGraph.from_dict(copy.deepcopy(display_graph(mid, dims, source.get("coreStructureId"))))
                 scene, chips = scene_from_graph(graph, representation, colors, atom_scale, bond_scale, draw, cluster_sites, cluster_details, element_colors)
                 status = f"{len(graph.structure):,} sites · supercell {dims[0]}×{dims[1]}×{dims[2]}"
                 if "labels" in draw and len(graph.structure) > 256:
@@ -1714,7 +1868,7 @@ class ClusterExplorer(MPShipsApp):
                     status += " · site magnetic moments unavailable"
                 # Browser-side updates use this key to reject stale responses,
                 # clean obsolete label overlays and preserve camera-only state.
-                scene_key = hashlib.sha256(json.dumps([mid, dims, scene], sort_keys=True, cls=MontyEncoder).encode()).hexdigest()
+                scene_key = hashlib.sha256(json.dumps([mid, source.get("coreStructureId"), dims, scene], sort_keys=True, cls=MontyEncoder).encode()).hexdigest()
                 def tag_atoms(node):
                     if node.get("ceElement"):
                         node["ceViewTag"] = scene_key
@@ -1722,6 +1876,7 @@ class ClusterExplorer(MPShipsApp):
                         tag_atoms(child)
                 tag_atoms(scene)
                 return {**response, "scene": scene, "sceneKey": scene_key,
+                        "coreStructureId": source.get("coreStructureId"), "structureSource": source["structureSource"],
                         "legend": chips, "status": status, "rotate": "rotate" in draw,
                         "highlightWarning": highlight_warning, "highlightedParentSites": len(cluster_sites)}
             except ValueError as error:
@@ -1785,9 +1940,10 @@ class ClusterExplorer(MPShipsApp):
             try:
                 if ctx.triggered_id == self.id("export-material"):
                     payload = material_payload(identifier(mid))
-                    return dcc.send_string(json.dumps({k: v for k, v in payload.items() if k != "native"}, indent=2), f"{mid}_contribution.json")
+                    return dcc.send_string(json.dumps({k: v for k, v in payload.items() if k not in {"native", "referenceStructure"}}, indent=2), f"{mid}_contribution.json")
                 dims = supercell_dimensions([x, y, z])
-                structure = StructureGraph.from_dict(copy.deepcopy(display_graph(identifier(mid), dims))).structure
+                payload = material_payload(identifier(mid))
+                structure = StructureGraph.from_dict(copy.deepcopy(display_graph(mid, dims, payload.get("coreStructureId")))).structure
                 structure.remove_site_property("_ce_parent_site")
                 if ctx.triggered_id == self.id("export-cif"):
                     return dcc.send_string(structure.to(fmt="cif"), f"{mid}_{x}x{y}x{z}.cif")
@@ -1819,7 +1975,7 @@ class ClusterExplorer(MPShipsApp):
         @cached(TTLCache(maxsize=32, ttl=900), condition=Condition())
         def insertion_battery_rows(mid):
             row = material_payload(mid)["row"]
-            route = get_rester(use_document_model=False, mute_progress_bars=True).materials.insertion_electrodes
+            route = mp_client().materials.insertion_electrodes
             docs = route.search(formula=row["formula"], fields=battery_fields, chunk_size=100, num_chunks=5)
             if len(docs) >= 500:
                 raise ValueError("Insertion lookup exceeds its bounded result limit")
@@ -1833,7 +1989,7 @@ class ClusterExplorer(MPShipsApp):
             if projection["revision"] != revision:
                 raise ValueError("Contribution index changed during battery lookup")
             wanted = {alias(row["identifier"]) for row in projection["rows"]}
-            route = get_rester(use_document_model=False, mute_progress_bars=True).materials.conversion_electrodes
+            route = mp_client().materials.conversion_electrodes
             total = route.count()
             if not isinstance(total, int) or not 0 <= total <= 50000:
                 raise ValueError("Conversion collection exceeds its reviewed lookup budget")

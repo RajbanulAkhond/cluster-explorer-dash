@@ -66,6 +66,23 @@ components are supplied by Dash/AG Grid and `dash-mp-components`.
 6. Export all matches as CSV, or both child tables plus provenance as ZIP.
    CIF/JSON structure downloads retain source coordinates and the chosen supercell.
 
+### Search and examples
+
+Each new text query (or change of search mode) replaces the previous element
+selection. The periodic table automatically selects elements shared by **every**
+text match: a material ID or unique formula selects that material's elements;
+partial/ambiguous searches select only their common elements; no matches or an
+empty query select none. This cannot narrow the text matches. Subsequent
+periodic-table clicks refine that text result set. Other filters remain active;
+Reset clears all filters, and saved links preserve their explicit element choices.
+Pressing Enter explicitly starts a fresh text search, even when its text is
+unchanged or empty.
+
+Selecting an example clears conflicting filters, searches its exact MP ID,
+resets pagination, selects its result row, and loads its details and crystal.
+Loading spinners track the slow index/material/viewer/battery callbacks, including
+the response stores rather than only the final display callbacks.
+
 
 ## Tests
 
@@ -80,6 +97,8 @@ uv run --locked --extra test python -m unittest discover -s tests -v
 The app must already be running. Set `CLUSTER_EXPLORER_BASE_URL` to test a different
 host or the actual MP staging prefix. Browser downloads/screenshots go to a
 temporary directory, never into the repository. No test uploads contributions.
+Set `CLUSTER_EXPLORER_REQUIRE_EXAMPLE_HIGHLIGHTING=1` when the example cache bundle
+is configured to require positive highlighting checks for all three examples.
 
 The 10 workflows cover startup/index completeness, search/elements/paging/sorting,
 scientific filters/ranges, examples/details/links, flat-band and automatic battery
@@ -87,25 +106,50 @@ data, crystal interaction/reset, downloads, saved links/session isolation,
 responsive pinned controls, and invalid-state/stale-content handling. Expected
 counts come from the complete live export rather than a fixed material count.
 
-## Remaining staging checks
+## Highlighting and staging
 
-Cluster highlighting uses an optional, viewer-only `clusterMemberships` table.
-Its four columns are `materialId`, `clusterIndex`, `siteReferences`, and
-`pointGroupRow`. References such as `2@(1,0,-1)` include periodic offsets;
-bare indices mean zero offsets. The app lazily fetches only the selected
-material's table and checks MPContribs' native table identity/checksum, structure
-fingerprint, and source-table bindings. Elements come from the summary structure;
-point groups and distances come from the existing tables. The new table is not
-rendered in the app or included in normal scientific-table exports. The original
-`clusters` and `clusterPointGroups` tables remain unchanged. Unavailable/stale data shows
-"Cluster highlighting isn't available for this material" and leave the normal
-crystal view usable.
+Highlighting uses an optional, viewer-only clusterMemberships table with
+materialId, clusterIndex, memberIndex, siteIndex, imageA, imageB, and imageC.
+Member order is explicit. Image offsets are lattice translations. Limits allow
+32 clusters, 16 atoms per cluster, site indices 0–255, images −2…2, and 512 atom
+rows per material. Integral API numbers and numeric strings are accepted;
+fractional, malformed and out-of-range values are rejected.
 
-Before tables are uploaded, set `CLUSTER_EXPLORER_HIGHLIGHT_DIR` to the
-external package's `materials/` directory for local testing. These JSON files
-are offline caches, not attachments or upload artifacts. A remote
-highlighting record is authoritative and never falls back to an older local
-file. Local data and credentials are not included in the deployable app.
+Each clusters row stores its certified point-group symbol. It must exist in
+clusterPointGroups; repeated symbols do not imply a unique X-label assignment.
+Mean distance comes from that same cluster row. Original cluster values and row
+order are preserved when the column is added. Legacy tables without the column
+remain readable. Memberships are neither displayed nor included in ordinary
+scientific-table exports.
+
+Table presence enables highlighting. Main data may contain
+highlightingUnavailableReason, but no ClusterHighlighting object, structure hash
+or source-table hashes are required. Ordinary API table identity and pagination
+checks remain. Scientific fingerprints and provenance belong to the offline audit.
+
+data.coreStructureId is stored with an mp- prefix, including encoded task IDs.
+The app retrieves that task's final structure for the viewer and CIF/JSON
+downloads; current Summary properties are fetched independently. Spin moments
+come from the same task's OUTCAR. One MP client is reused per worker and structures
+remain lazy and cached. Preparation batches task reads and verifies returned-ID
+coverage. Failed pinned-task reads never substitute Summary geometry.
+
+### Local preview before upload
+
+Request the regenerated cluster-explorer-example-highlighting.zip containing
+mp-29950, mp-4474 and mp-673706. Extract outside the repository and set:
+
+    export CLUSTER_EXPLORER_HIGHLIGHT_DIR="/absolute/path/to/cluster-explorer-example-highlighting/materials"
+    uv run --locked python run_app.py
+
+The local JSONs contain both source tables plus memberships to preview the new
+symbol column before migration. Original source values must agree with the live
+contribution. They contain no structures or credentials and must not be uploaded
+as attachments. Old cache formats are rejected. A published unavailable record
+or incomplete migration cannot fall back to local preview data.
+
+Missing or invalid data shows "Cluster highlighting isn't available for this
+material". The ordinary viewer remains usable where a structure can be fetched.
 
 ## References
 
