@@ -106,58 +106,50 @@ data, crystal interaction/reset, downloads, saved links/session isolation,
 responsive pinned controls, and invalid-state/stale-content handling. Expected
 counts come from the complete live export rather than a fixed material count.
 
-## Remaining staging checks
+## Highlighting and staging
 
-Cluster highlighting uses an optional, viewer-only `clusterMemberships` table.
-Each atom has an explicit row with `materialId`, `clusterIndex`, `memberIndex`,
-`siteIndex`, `imageA`, `imageB`, `imageC`, and `pointGroupRow`. Member indices
-preserve the certified atom order within each cluster. Signed image values are
-integer lattice translations. The app lazily fetches only the selected
-material's table. The reviewed bounds allow 32 clusters, 16 members per cluster,
-site indices 0–255, point-group rows 0–31, and image offsets −2…2. At most 512
-atom rows are accepted per material; actual source-table/site bounds are also checked.
-The app checks MPContribs table identity/checksum, the structure fingerprint,
-and source-table bindings. `data.coreStructureId` pins the final
-structure of a specific Core-origin task; the viewer and CIF/JSON downloads
-retrieve it from `get_rester().materials.tasks.search(task_ids=[...])`.
-The current Summary API supplies property metadata independently. Elements come from the pinned structure;
-the optional Spin display reads site magnetic moments from that same task's
-OUTCAR output, without changing the bound geometry.
-point groups and distances come from the existing tables. The new table is not
-rendered in the app or included in normal scientific-table exports. The original
-`clusters` and `clusterPointGroups` tables remain unchanged. Unavailable/stale data shows
-"Cluster highlighting isn't available for this material" and leave the normal
-crystal view usable. Legacy contributions without a pin use Summary geometry;
-a failed pinned-task request never substitutes a newer Summary structure.
+Highlighting uses an optional, viewer-only clusterMemberships table with
+materialId, clusterIndex, memberIndex, siteIndex, imageA, imageB, and imageC.
+Member order is explicit. Image offsets are lattice translations. Limits allow
+32 clusters, 16 atoms per cluster, site indices 0–255, images −2…2, and 512 atom
+rows per material. Integral API numbers and numeric strings are accepted;
+fractional, malformed and out-of-range values are rejected.
 
-Before tables are uploaded, set `CLUSTER_EXPLORER_HIGHLIGHT_DIR` to the
-external package's `materials/` directory for local testing. These JSON files
-are offline caches, not attachments or upload artifacts. Use the
-`core-structure-highlight-v2` package; older compact caches are rejected. A remote
-highlighting record is authoritative and never falls back to an older local
-file. Local data and credentials are not included in the deployable app.
+Each clusters row stores its certified point-group symbol. It must exist in
+clusterPointGroups; repeated symbols do not imply a unique X-label assignment.
+Mean distance comes from that same cluster row. Original cluster values and row
+order are preserved when the column is added. Legacy tables without the column
+remain readable. Memberships are neither displayed nor included in ordinary
+scientific-table exports.
 
-### Testing highlighting on another machine
+Table presence enables highlighting. Main data may contain
+highlightingUnavailableReason, but no ClusterHighlighting object, structure hash
+or source-table hashes are required. Ordinary API table identity and pagination
+checks remain. Scientific fingerprints and provenance belong to the offline audit.
 
-Until the memberships are published to MPContribs, a normal clone has no
-highlighting data. Request `cluster-explorer-example-highlighting.zip` from the
-authors. It contains only the validated membership caches for `mp-29950`,
-`mp-4474`, and `mp-673706`, not structures or credentials. Extract it outside
-this repository, then start the app with the existing API key in your environment:
+data.coreStructureId is stored with an mp- prefix, including encoded task IDs.
+The app retrieves that task's final structure for the viewer and CIF/JSON
+downloads; current Summary properties are fetched independently. Spin moments
+come from the same task's OUTCAR. One MP client is reused per worker and structures
+remain lazy and cached. Preparation batches task reads and verifies returned-ID
+coverage. Failed pinned-task reads never substitute Summary geometry.
 
-```sh
-export CLUSTER_EXPLORER_HIGHLIGHT_DIR="/absolute/path/to/cluster-explorer-example-highlighting/materials"
-uv run --locked python run_app.py
-```
+### Local preview before upload
 
-Choose one of those examples and leave **Cluster atoms** enabled. Structures
-come directly from MP's task API using each saved `coreStructureId`.
-Point groups and mean distances come
-from the existing contribution tables; the cache supplies only atom membership
-and validation metadata. A structure/table mismatch keeps highlighting off rather
-than applying potentially incorrect site indices. Other materials can still show
-the unavailability warning. No JSON attachment or duplicate structure upload is
-needed for this local demonstration.
+Request the regenerated cluster-explorer-example-highlighting.zip containing
+mp-29950, mp-4474 and mp-673706. Extract outside the repository and set:
+
+    export CLUSTER_EXPLORER_HIGHLIGHT_DIR="/absolute/path/to/cluster-explorer-example-highlighting/materials"
+    uv run --locked python run_app.py
+
+The local JSONs contain both source tables plus memberships to preview the new
+symbol column before migration. Original source values must agree with the live
+contribution. They contain no structures or credentials and must not be uploaded
+as attachments. Old cache formats are rejected. A published unavailable record
+or incomplete migration cannot fall back to local preview data.
+
+Missing or invalid data shows "Cluster highlighting isn't available for this
+material". The ordinary viewer remains usable where a structure can be fetched.
 
 ## References
 
